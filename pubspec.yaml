@@ -1,0 +1,26 @@
+name: suraksha_sos
+description: "AK SOS - one-tap SOS with live location, plus nearby police stations, railway stations, airports, hospitals and helplines."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  geolocator: ^13.0.1          # GPS location + distance calculation
+  http: ^1.2.2                 # OpenStreetMap (Overpass) queries
+  url_launcher: ^6.3.0         # SMS composer, phone dialer, Google Maps directions
+  shared_preferences: ^2.3.2   # Saved emergency contacts + SOS settings
+  flutter_map: ^7.0.2          # Map view (OpenStreetMap tiles, no API key)
+  latlong2: ^0.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
