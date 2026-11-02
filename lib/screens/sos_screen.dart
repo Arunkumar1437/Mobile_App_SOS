@@ -42,7 +42,13 @@ class _SosScreenState extends State<SosScreen>
 
   List<EmergencyContact> _contacts = [];
   bool _include112 = true;
+  bool _autoSend = false;
   String _baseMessage = StorageService.defaultMessage;
+
+  // How the last SOS went out: texted straight from the phone, or handed to
+  // the SMS app because auto-send was off, unavailable or failed.
+  int _sentCount = 0;
+  int _failedCount = 0;
 
   Place? get _nearestPolice => _police.isEmpty ? null : _police.first;
 
@@ -76,11 +82,13 @@ class _SosScreenState extends State<SosScreen>
   Future<void> _loadSettings() async {
     final contacts = await StorageService.loadContacts();
     final include112 = await StorageService.loadInclude112();
+    final autoSend = await StorageService.loadAutoSend();
     final message = await StorageService.loadMessage();
     if (!mounted) return;
     setState(() {
       _contacts = contacts;
       _include112 = include112;
+      _autoSend = autoSend;
       _baseMessage = message;
     });
   }
@@ -179,12 +187,12 @@ class _SosScreenState extends State<SosScreen>
     }
 
     if (!mounted) return;
-    setState(() => _status = 'Opening SMS…');
-    final opened = await _openSms(pos);
+    setState(() => _status = _autoSend ? 'Sending SMS…' : 'Opening SMS…');
+    final opened = await _deliver(pos);
     if (!mounted) return;
     setState(() {
       _stage = opened ? SosStage.done : SosStage.failed;
-      _error = opened ? null : 'Could not open the SMS app. Call 112 now.';
+      _error = opened ? null : 'Could not send or open the SMS. Call 112 now.';
     });
   }
 
@@ -202,13 +210,43 @@ class _SosScreenState extends State<SosScreen>
     return parts.isEmpty ? '112' : parts.join(' + ');
   }
 
-  Future<bool> _openSms(Position? pos) {
+  /// Sends the SOS text. With auto-send on and the SMS permission granted it
+  /// goes out straight from the phone. Anything that can't be sent that way
+  /// (no permission, no signal) falls back to the SMS app, where the user taps
+  /// Send. Returns false only if nothing could be sent or opened.
+  Future<bool> _deliver(Position? pos) async {
     final msg = SosService.buildMessage(
       base: _baseMessage,
       position: pos,
       police: _nearestPolice,
     );
-    return SosService.openSms(_recipients, msg);
+    void record(int sent, int failed) {
+      if (!mounted) return;
+      setState(() {
+        _sentCount = sent;
+        _failedCount = failed;
+      });
+    }
+
+    var numbers = _recipients;
+    var sent = 0;
+    if (_autoSend) {
+      final result = await SosService.sendSms(numbers, msg);
+      if (result != null) {
+        final failed = [
+          for (final e in result.entries)
+            if (!e.value) e.key,
+        ];
+        sent = result.length - failed.length;
+        if (failed.isEmpty) {
+          record(sent, 0);
+          return true;
+        }
+        numbers = failed;
+      }
+    }
+    record(sent, sent > 0 ? numbers.length : 0);
+    return SosService.openSms(numbers, msg);
   }
 
   // ---------------------------------------------------------------------- UI
@@ -378,14 +416,22 @@ class _SosScreenState extends State<SosScreen>
         return Text(_status,
             textAlign: TextAlign.center, style: theme.textTheme.titleMedium);
       case SosStage.done:
+        final texted = _sentCount > 0;
         return _ResultCard(
           icon: Icons.check_circle,
           color: Colors.green,
-          title: 'SOS message ready',
-          body: 'Your SMS app opened with your location for '
-              '${_recipientSummary()}. Tap Send there if it has not gone yet, '
-              'then call for help below.',
-          onResend: () => _openSms(_position),
+          title: texted && _failedCount == 0 ? 'SOS sent' : 'SOS message ready',
+          body: !texted
+              ? 'Your SMS app opened with your location for '
+                  '${_recipientSummary()}. Tap Send there if it has not gone '
+                  'yet, then call for help below.'
+              : _failedCount == 0
+                  ? 'Your location was texted to ${_recipientSummary()}. '
+                      'Now call for help below.'
+                  : 'Texted $_sentCount of ${_sentCount + _failedCount} '
+                      'numbers. Your SMS app opened for the rest: tap Send '
+                      'there, then call for help below.',
+          onResend: () => _deliver(_position),
           onDone: () => setState(() => _stage = SosStage.idle),
         );
       case SosStage.failed:
@@ -394,7 +440,7 @@ class _SosScreenState extends State<SosScreen>
           color: theme.colorScheme.error,
           title: 'Could not send SOS',
           body: _error ?? 'Something went wrong. Call 112 now.',
-          onResend: () => _openSms(_position),
+          onResend: () => _deliver(_position),
           onDone: () => setState(() => _stage = SosStage.idle),
         );
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/location_service.dart';
 import '../services/sos_service.dart';
 import '../services/storage_service.dart';
 
@@ -13,6 +14,7 @@ class ContactsScreen extends StatefulWidget {
 class _ContactsScreenState extends State<ContactsScreen> {
   List<EmergencyContact> _contacts = [];
   bool _include112 = true;
+  bool _autoSend = false;
   final _messageCtrl = TextEditingController();
 
   @override
@@ -30,13 +32,34 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Future<void> _load() async {
     final contacts = await StorageService.loadContacts();
     final include112 = await StorageService.loadInclude112();
+    final autoSend = await StorageService.loadAutoSend();
     final message = await StorageService.loadMessage();
     if (!mounted) return;
     setState(() {
       _contacts = contacts;
       _include112 = include112;
+      _autoSend = autoSend;
       _messageCtrl.text = message;
     });
+  }
+
+  Future<void> _setAutoSend(bool value) async {
+    // Turning it on asks Android for the SMS permission first.
+    if (value && !await SosService.requestSmsPermission()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text(
+            'Allow the SMS permission to send your SOS automatically.'),
+        action: SnackBarAction(
+          label: 'Settings',
+          onPressed: () =>
+              LocationService.applyFix(LocationFix.openAppSettings),
+        ),
+      ));
+      return;
+    }
+    setState(() => _autoSend = value);
+    await StorageService.saveAutoSend(value);
   }
 
   Future<void> _addContact() async {
@@ -123,6 +146,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
               await StorageService.saveInclude112(v);
             },
           ),
+          if (SosService.autoSendSupported)
+            SwitchListTile(
+              title: const Text('Send SOS SMS automatically'),
+              subtitle: const Text(
+                  'Texts 112 and your contacts straight away, without opening '
+                  'your SMS app. Needs the SMS permission, and normal SMS '
+                  'charges apply.'),
+              value: _autoSend,
+              onChanged: _setAutoSend,
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Text('SOS MESSAGE', style: theme.textTheme.labelMedium),

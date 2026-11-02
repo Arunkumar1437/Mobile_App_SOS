@@ -20,6 +20,7 @@ class StorageService {
   static const _kContacts = 'contacts';
   static const _kMessage = 'sos_message';
   static const _kInclude112 = 'include_112';
+  static const _kAutoSend = 'auto_send_sms';
 
   static const defaultMessage =
       'EMERGENCY! I need help immediately. This is an SOS sent from my phone.';
@@ -71,6 +72,18 @@ class StorageService {
   static Future<void> saveInclude112(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kInclude112, value);
+    changes.value++;
+  }
+
+  /// Off by default: it texts 112 with no tap, so the user opts in.
+  static Future<bool> loadAutoSend() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kAutoSend) ?? false;
+  }
+
+  static Future<void> saveAutoSend(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kAutoSend, value);
     changes.value++;
   }
 }

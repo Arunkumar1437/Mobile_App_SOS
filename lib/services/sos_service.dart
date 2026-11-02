@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -7,6 +8,9 @@ import '../models/place.dart';
 
 /// Builds the SOS text and hands off to the phone's SMS app, dialer and maps.
 class SosService {
+  /// Android-only channel (see MainActivity.kt) that texts without the SMS app.
+  static const _sms = MethodChannel('com.example.suraksha_sos/sms');
+
   static String buildMessage({
     required String base,
     Position? position,
@@ -31,15 +35,52 @@ class SosService {
     return b.toString();
   }
 
+  /// Only Android can text without opening the SMS app, and only once the
+  /// user grants the SMS permission (see [requestSmsPermission]).
+  static bool get autoSendSupported => Platform.isAndroid;
+
+  static Future<bool> hasSmsPermission() async {
+    if (!autoSendSupported) return false;
+    try {
+      return await _sms.invokeMethod<bool>('hasPermission') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Shows Android's SMS permission prompt. True if it is granted.
+  static Future<bool> requestSmsPermission() async {
+    if (!autoSendSupported) return false;
+    try {
+      return await _sms.invokeMethod<bool>('requestPermission') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Texts [body] to every number straight from the phone, with no SMS app and
+  /// no tap on Send. Returns, per number, whether the phone's radio accepted
+  /// it. Null means auto-send is not available (not Android, or no SMS
+  /// permission): nothing was sent, so fall back to [openSms].
+  static Future<Map<String, bool>?> sendSms(
+    List<String> numbers,
+    String body,
+  ) async {
+    if (!await hasSmsPermission()) return null;
+    try {
+      return await _sms.invokeMapMethod<String, bool>(
+        'send',
+        {'numbers': _recipients(numbers), 'body': body},
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Opens the SMS app with all recipients and the message filled in.
-  /// The user taps Send (see README for why the app does not auto-send).
+  /// The user taps Send (see README for why this is the default).
   static Future<bool> openSms(List<String> numbers, String body) async {
-    final nums = numbers
-        .map(cleanPhone)
-        .where((n) => n.isNotEmpty)
-        .toSet()
-        .toList();
-    if (nums.isEmpty) nums.add('112');
+    final nums = _recipients(numbers);
     final encoded = Uri.encodeComponent(body);
 
     final Uri uri;
@@ -78,6 +119,17 @@ class SosService {
   }
 
   static String cleanPhone(String p) => p.replaceAll(RegExp(r'[^0-9+]'), '');
+
+  /// Cleaned, de-duplicated numbers; 112 if there are none.
+  static List<String> _recipients(List<String> numbers) {
+    final nums = numbers
+        .map(cleanPhone)
+        .where((n) => n.isNotEmpty)
+        .toSet()
+        .toList();
+    if (nums.isEmpty) nums.add('112');
+    return nums;
+  }
 
   static String _timestamp(DateTime t) {
     String two(int v) => v.toString().padLeft(2, '0');

@@ -10,7 +10,7 @@ Built for India. No API keys or paid services needed.
 |---|---|
 | **SOS** | Big SOS button: tap for a 5-second countdown (cancel anytime) or hold to send instantly. Gets your GPS location, finds the nearest police station, and opens your SMS app pre-filled for **112 + your emergency contacts** with a Google Maps link, accuracy, nearest police station and time. One-tap calls to 112, 108 and the nearest police station. |
 | **Nearby** | Police, Railway, Airport, Hospital, Fire Station, Bus Stand, Pharmacy — within 10 km, sorted by distance, with address, phone, station code / IATA code, **Call** and **Directions** (Google Maps). List or map view. |
-| **Contacts** | Add/remove emergency contacts, edit your SOS message, turn 112 on/off (use off while testing). |
+| **Contacts** | Add/remove emergency contacts, edit your SOS message, turn 112 on/off (use off while testing), optional automatic SMS sending (Android). |
 | **Helplines** | One-tap Indian helplines: 112, 100, 101, 108, 1091, 181, 1098, 139 (Rail Madad), 1930 (cyber crime), 1033 (highway) and more. |
 
 ## Run it
@@ -48,10 +48,15 @@ number as a contact while testing. Do not send test messages to 112.
   official channel is **112** (ERSS), which accepts calls and SMS. The app
   sends to 112 and your contacts, and lets you call the nearest police
   station when OpenStreetMap lists its phone number (usually a landline).
-- **The app opens the SMS app pre-filled; you tap Send.** Sending SMS silently
-  needs Android's `SEND_SMS` permission, which Google Play only allows for
-  default SMS apps or approved exceptions. If you distribute outside Play (or
-  get approval), you can add auto-send with a package like `another_telephony`.
+- **By default the app opens the SMS app pre-filled; you tap Send.** On Android
+  you can switch on **Send SOS SMS automatically** (Contacts tab): the app then
+  texts 112 and your contacts straight from the phone, with no tap. It asks for
+  Android's `SEND_SMS` permission when you turn the switch on (off by default,
+  so a test press never texts 112 by surprise). Any number that cannot be sent
+  (no signal, permission refused) falls back to the pre-filled SMS app. Google
+  Play only allows `SEND_SMS` for default SMS apps or approved exceptions, so
+  use auto-send for APKs you install directly, or get approval before
+  publishing. iOS never allows silent SMS, so it always opens the SMS app.
 - If GPS fails, the SOS still goes out with the last known location, or with
   "location unavailable".
 

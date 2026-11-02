@@ -5,6 +5,9 @@
     <!-- GPS location for SOS and nearby search -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Optional auto-send: texts the SOS without opening the SMS app -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:label="AK SOS"
